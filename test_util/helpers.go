@@ -183,7 +183,7 @@ func generateConfig(statusPort, proxyPort uint16, natsPorts ...uint16) *config.C
 	c.Nats = []config.NatsConfig{}
 	for _, natsPort := range natsPorts {
 		c.Nats = append(c.Nats, config.NatsConfig{
-			Host: "localhost",
+			Host: "127.0.0.1",
 			Port: natsPort,
 			User: "nats",
 			Pass: "nats",

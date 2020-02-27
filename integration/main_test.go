@@ -1052,6 +1052,7 @@ func routeExists(routesEndpoint, routeName string) (bool, error) {
 		err = json.Unmarshal(bytes, &routes)
 		Expect(err).ToNot(HaveOccurred())
 
+		fmt.Printf("%#v\n", routes)
 		_, found := routes[routeName]
 		return found, nil
 

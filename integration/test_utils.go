@@ -1,14 +1,15 @@
 package integration
 
 import (
-	"code.cloudfoundry.org/gorouter/config"
-	"code.cloudfoundry.org/gorouter/test_util"
 	"crypto/tls"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"syscall"
 	"time"
+
+	"code.cloudfoundry.org/gorouter/config"
+	"code.cloudfoundry.org/gorouter/test_util"
 
 	yaml "gopkg.in/yaml.v2"
 
