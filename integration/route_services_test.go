@@ -99,7 +99,7 @@ var _ = Describe("Route services", func() {
 				Expect(err).ToNot(HaveOccurred())
 				Expect(body).To(Equal([]byte("I'm the route service")))
 			})
-		
+
 			It("properly URL-encodes and decodes", func() {
 				req := testState.newRequest(
 					fmt.Sprintf("https://%s?%s", appHostname, "param=a%0Ab"),
