@@ -95,8 +95,6 @@ type roundTripper struct {
 
 func (rt *roundTripper) RoundTrip(originalRequest *http.Request) (*http.Response, error) {
 	var err error
-	var res *http.Response
-	var endpoint *route.Endpoint
 
 	request := originalRequest.Clone(originalRequest.Context())
 
@@ -120,42 +118,50 @@ func (rt *roundTripper) RoundTrip(originalRequest *http.Request) (*http.Response
 		return nil, errors.New("ProxyResponseWriter not set on context")
 	}
 
+	endpoint, res, stickyEndpointID, err := rt.doRoundTripWithRetries(reqInfo, request)
+
+	reqInfo.StoppedAt = time.Now()
+
+	if err != nil {
+		rt.errorHandler.HandleError(reqInfo.ProxyResponseWriter, err)
+		return nil, err
+	}
+
+	if res != nil && endpoint.PrivateInstanceId != "" {
+		setupStickySession(
+			res, endpoint, stickyEndpointID, rt.secureCookies,
+			reqInfo.RoutePool.ContextPath(), rt.stickySessionCookieNames,
+		)
+	}
+
+	return res, nil
+}
+
+func (rt *roundTripper) doRoundTripWithRetries(reqInfo *handlers.RequestInfo, request *http.Request) (*route.Endpoint, *http.Response, string, error) {
+	logger := rt.logger
+	var err error
+	var res *http.Response
+	var endpoint *route.Endpoint
+
 	stickyEndpointID := getStickySession(request, rt.stickySessionCookieNames)
 	iter := reqInfo.RoutePool.Endpoints(rt.defaultLoadBalance, stickyEndpointID)
 
-	logger := rt.logger
-	var selectEndpointErr error
-	for retry := 0; retry < handler.MaxRetries; retry++ {
-		logger = rt.logger
+	logger = rt.logger
 
-		if reqInfo.RouteServiceURL == nil {
-			endpoint, selectEndpointErr = rt.selectEndpoint(iter, request)
-			if selectEndpointErr != nil {
+	if reqInfo.RouteServiceURL == nil {
+		for attempt := 1; attempt < handler.MaxRetries+1; attempt++ {
+			endpoint, res, logger, err = rt.doRoundTripToBackend(iter, request, reqInfo, attempt)
+
+			rt.logBackendEndpointFailedError(err, attempt, request, logger)
+
+			if rt.shouldBeRetried(err) {
+				logger.Debug("retriable-error", zap.Object("error", err))
+			} else {
 				break
 			}
-			logger = logger.With(zap.Nest("route-endpoint", endpoint.ToLogData()...))
-			reqInfo.RouteEndpoint = endpoint
-
-			logger.Debug("backend", zap.Int("attempt", retry))
-			if endpoint.IsTLS() {
-				request.URL.Scheme = "https"
-			} else {
-				request.URL.Scheme = "http"
-			}
-			res, err = rt.backendRoundTrip(request, endpoint, iter)
-
-			if err != nil {
-				iter.EndpointFailed(err)
-				logger.Error("backend-endpoint-failed", zap.Error(err), zap.Int("attempt", retry+1), zap.String("vcap_request_id", request.Header.Get(handlers.VcapRequestIdHeader)))
-
-				if rt.retriableClassifier.Classify(err) {
-					logger.Debug("retriable-error", zap.Object("error", err))
-					continue
-				}
-			}
-
-			break
-		} else {
+		}
+	} else {
+		for retry := 0; retry < handler.MaxRetries; retry++ {
 			logger.Debug(
 				"route-service",
 				zap.Object("route-service-url", reqInfo.RouteServiceURL),
@@ -197,26 +203,58 @@ func (rt *roundTripper) RoundTrip(originalRequest *http.Request) (*http.Response
 		}
 	}
 
-	reqInfo.StoppedAt = time.Now()
+	if see, ok := err.(*selectEndpointError); ok {
+		err = see.err
+	}
+	return endpoint, res, stickyEndpointID, err
+}
 
-	finalErr := err
-	if finalErr == nil {
-		finalErr = selectEndpointErr
+func (rt *roundTripper) logBackendEndpointFailedError(err error, attempt int, request *http.Request, logger logger.Logger) {
+	if err != nil {
+		_, isSelectEndpointError := err.(*selectEndpointError)
+		if !isSelectEndpointError {
+			logger.Error(
+				"backend-endpoint-failed",
+				zap.Error(err),
+				zap.Int("attempt", attempt),
+				zap.String("vcap_request_id", request.Header.Get(handlers.VcapRequestIdHeader)),
+			)
+		}
+	}
+}
+
+func (rt *roundTripper) shouldBeRetried(err error) bool {
+	return err != nil && rt.retriableClassifier.Classify(err)
+}
+
+type selectEndpointError struct {
+	err error
+}
+
+func (s selectEndpointError) Error() string {
+	return s.err.Error()
+}
+
+func (rt *roundTripper) doRoundTripToBackend(iter route.EndpointIterator, request *http.Request, reqInfo *handlers.RequestInfo, attempt int) (*route.Endpoint, *http.Response, logger.Logger, error) {
+	endpoint, err := rt.selectEndpoint(iter, request)
+	if err != nil {
+		return endpoint, nil, rt.logger, &selectEndpointError{err: err}
+	}
+	logger := rt.logger.With(zap.Nest("route-endpoint", endpoint.ToLogData()...))
+	reqInfo.RouteEndpoint = endpoint
+	if endpoint.IsTLS() {
+		request.URL.Scheme = "https"
+	} else {
+		request.URL.Scheme = "http"
 	}
 
-	if finalErr != nil {
-		rt.errorHandler.HandleError(reqInfo.ProxyResponseWriter, finalErr)
-		return nil, finalErr
+	logger.Debug("backend", zap.Int("attempt", attempt))
+	res, err := rt.backendRoundTrip(request, endpoint, iter)
+	if err != nil {
+		iter.EndpointFailed(err)
 	}
 
-	if res != nil && endpoint.PrivateInstanceId != "" {
-		setupStickySession(
-			res, endpoint, stickyEndpointID, rt.secureCookies,
-			reqInfo.RoutePool.ContextPath(), rt.stickySessionCookieNames,
-		)
-	}
-
-	return res, nil
+	return endpoint, res, logger, err
 }
 
 func (rt *roundTripper) CancelRequest(request *http.Request) {
