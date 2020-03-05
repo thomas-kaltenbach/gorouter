@@ -186,20 +186,20 @@ func (rt *roundTripper) doRoundTripWithRetries(reqInfo *handlers.RequestInfo, re
 			if err != nil {
 				logger.Error("route-service-connection-failed", zap.Error(err))
 
-				if rt.retriableClassifier.Classify(err) {
-					continue
+				if !rt.retriableClassifier.Classify(err) {
+					break
 				}
-			}
 
-			if res != nil && (res.StatusCode < 200 || res.StatusCode >= 300) {
-				logger.Info(
-					"route-service-response",
-					zap.String("endpoint", request.URL.String()),
-					zap.Int("status-code", res.StatusCode),
-				)
+			} else if res != nil {
+				if !wasRequestSuccessful(res) {
+					logger.Info(
+						"route-service-response",
+						zap.String("endpoint", request.URL.String()),
+						zap.Int("status-code", res.StatusCode),
+					)
+				}
+				break
 			}
-
-			break
 		}
 	}
 
@@ -207,6 +207,10 @@ func (rt *roundTripper) doRoundTripWithRetries(reqInfo *handlers.RequestInfo, re
 		err = see.err
 	}
 	return endpoint, res, stickyEndpointID, err
+}
+
+func wasRequestSuccessful(res *http.Response) bool {
+	return 200 <= res.StatusCode && res.StatusCode < 300
 }
 
 func (rt *roundTripper) logBackendEndpointFailedError(err error, attempt int, request *http.Request, logger logger.Logger) {
@@ -312,7 +316,7 @@ func (rt *roundTripper) timedRoundTrip(tr http.RoundTripper, request *http.Reque
 		return nil, err
 	}
 
-	return resp, err
+	return resp, nil
 }
 
 func (rt *roundTripper) selectEndpoint(iter route.EndpointIterator, request *http.Request) (*route.Endpoint, error) {
