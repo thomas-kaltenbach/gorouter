@@ -240,8 +240,10 @@ func (s selectEndpointError) Error() string {
 }
 
 func (rt *roundTripper) doRoundTripToBackend(iter route.EndpointIterator, request *http.Request, reqInfo *handlers.RequestInfo, attempt int) (*route.Endpoint, *http.Response, logger.Logger, error) {
+	println("======= doing the trip to backend")
 	endpoint, err := rt.selectEndpoint(iter, request)
 	if err != nil {
+		println("============== fucked up, there are no endpoints")
 		return endpoint, nil, rt.logger, &selectEndpointError{err: err}
 	}
 	logger := rt.logger.With(zap.Nest("route-endpoint", endpoint.ToLogData()...))
