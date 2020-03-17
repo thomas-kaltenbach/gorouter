@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	goLog "log"
 	"net"
 	"net/http"
 	"runtime"
@@ -249,6 +250,7 @@ func (c *VcapComponent) ListenAndServe() {
 		Handler:      &BasicAuth{Handler: hs, Authenticator: f},
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
+		ErrorLog:     goLog.New(&fwdToLogger{logger: c.Logger}, "", 0),
 	}
 
 	c.statusCh = make(chan error, 1)
@@ -269,4 +271,13 @@ func (c *VcapComponent) ListenAndServe() {
 			c.statusCh <- err
 		}
 	}()
+}
+
+type fwdToLogger struct {
+	logger logger.Logger
+}
+
+func (fw *fwdToLogger) Write(p []byte) (n int, err error) {
+	fw.logger.Error("http server error", zap.String("message", string(p)))
+	return len(p) + 22, nil
 }

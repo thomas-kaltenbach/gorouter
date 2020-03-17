@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"os"
@@ -142,7 +143,17 @@ func NewRouter(
 	return router, nil
 }
 
+type fwdToLogger struct {
+	logger logger.Logger
+}
+
+func (fw *fwdToLogger) Write(p []byte) (n int, err error) {
+	fw.logger.Error("http server error", zap.String("message", string(p)))
+	return len(p) + 22, nil
+}
+
 func (r *Router) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
+
 	r.registry.StartPruningCycle()
 
 	r.RegisterComponent()
@@ -157,6 +168,7 @@ func (r *Router) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 		Handler:     r.handler,
 		ConnState:   r.HandleConnState,
 		IdleTimeout: r.config.FrontendIdleTimeout,
+		ErrorLog:    log.New(&fwdToLogger{logger: r.logger}, "", 0),
 	}
 
 	err := r.serveHTTP(server, r.errChan)

@@ -9,10 +9,13 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
+	"log"
 	"math/big"
 	"net"
 	"net/http"
 	"time"
+
+	"code.cloudfoundry.org/gorouter/logger"
 )
 
 type CertType int
@@ -30,9 +33,10 @@ type RouteServicesServer struct {
 	clientCert tls.Certificate
 	serverCert tls.Certificate
 	servers    []*http.Server
+	logger     logger.Logger
 }
 
-func NewRouteServicesServer() (*RouteServicesServer, error) {
+func NewRouteServicesServer(logger logger.Logger) (*RouteServicesServer, error) {
 	caCert, caPriv, err := createCA()
 	if err != nil {
 		return nil, fmt.Errorf("create ca: %s", err)
@@ -66,6 +70,7 @@ func NewRouteServicesServer() (*RouteServicesServer, error) {
 		rootCA:     rootCertPool,
 		clientCert: clientCert,
 		serverCert: serverCert,
+		logger:     logger,
 	}, nil
 }
 
@@ -74,6 +79,7 @@ func (rs *RouteServicesServer) Serve(handler http.Handler, errChan chan error) e
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			handler.ServeHTTP(w, r)
 		}),
+		ErrorLog: log.New(&fwdToLogger{logger: rs.logger}, "", 0),
 	}
 	tlsConfig := &tls.Config{
 		ClientAuth:   tls.RequireAndVerifyClientCert,

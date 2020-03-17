@@ -165,7 +165,7 @@ func main() {
 		Certificates:       []tls.Certificate{c.RouteServiceConfig.ClientAuthCertificate},
 	}
 
-	rss, err := router.NewRouteServicesServer()
+	rss, err := router.NewRouteServicesServer(logger.Session("route-services-server"))
 	if err != nil {
 		logger.Fatal("new-route-services-server", zap.Error(err))
 	}
