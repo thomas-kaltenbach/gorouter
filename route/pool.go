@@ -481,6 +481,7 @@ func (e *Endpoint) ToLogData() []zap.Field {
 		zap.String("Addr", e.addr),
 		zap.Object("Tags", e.Tags),
 		zap.String("RouteServiceUrl", e.RouteServiceUrl),
+		zap.String("TimeOfLastUpdate", e.UpdatedAt.Format("2006-01-02T15:04:05.000000000Z")),
 	}
 }
 
