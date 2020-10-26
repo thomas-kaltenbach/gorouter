@@ -212,7 +212,7 @@ func (rt *roundTripper) RoundTrip(originalRequest *http.Request) (*http.Response
 	if res != nil && endpoint.PrivateInstanceId != "" {
 		setupStickySession(
 			res, endpoint, stickyEndpointID, rt.secureCookies,
-			reqInfo.RoutePool.ContextPath(), rt.stickySessionCookieNames,
+			reqInfo.RoutePool.ContextPath(), rt.stickySessionCookieNames, rt.logger,
 		)
 	}
 
@@ -297,6 +297,7 @@ func setupStickySession(
 	secureCookies bool,
 	path string,
 	stickySessionCookieNames config.StringSet,
+	logger logger.Logger,
 ) {
 	secure := false
 	maxAge := 0
@@ -305,6 +306,7 @@ func setupStickySession(
 
 	// did the endpoint change?
 	sticky := originalEndpointId != "" && originalEndpointId != endpoint.PrivateInstanceId
+	logger.Info("response debugging", zap.Bool("sticky first check?", sticky), zap.String("originalEndpointId", originalEndpointId), zap.String("private instance ID", endpoint.PrivateInstanceId))
 
 	for _, v := range response.Cookies() {
 		if _, ok := stickySessionCookieNames[v.Name]; ok {
@@ -315,6 +317,7 @@ func setupStickySession(
 			secure = v.Secure
 			sameSite = v.SameSite
 			expiry = v.Expires
+			logger.Info("response debugging", zap.Bool("sticky second check?", sticky), zap.String("private instance ID", endpoint.PrivateInstanceId))
 			break
 		}
 	}
@@ -322,9 +325,12 @@ func setupStickySession(
 	for _, v := range response.Cookies() {
 		if v.Name == VcapCookieId {
 			sticky = false
+			logger.Info("response debugging", zap.Bool("sticky third check?", sticky), zap.String("private instance ID", endpoint.PrivateInstanceId))
 			break
 		}
 	}
+
+	logger.Info("response debugging", zap.Bool("sticky fourth check?", sticky), zap.String("private instance ID", endpoint.PrivateInstanceId))
 
 	if sticky {
 		// right now secure attribute would as equal to the JSESSION ID cookie (if present),
