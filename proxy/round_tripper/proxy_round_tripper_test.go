@@ -583,6 +583,124 @@ var _ = Describe("ProxyRoundTripper", func() {
 				})
 			})
 
+			FContext("when using sticky sessions with an internal route service", func() {
+				var (
+					sessionCookie *http.Cookie
+					endpoint1     *route.Endpoint
+					endpoint2     *route.Endpoint
+					// routeServiceURL *url.URL
+				)
+
+				BeforeEach(func() {
+					var err error
+					// routeServiceURL, err = url.Parse("https://foo.com")
+					Expect(err).ToNot(HaveOccurred())
+					// reqInfo.RouteServiceURL = routeServiceURL
+
+					reqInfo.ShouldRouteToInternalRouteService = true
+					transport.RoundTripStub = nil
+					transport.RoundTripReturns(nil, nil)
+
+					sessionCookie = &http.Cookie{
+						Name: StickyCookieKey,
+					}
+
+					transport.RoundTripStub = func(req *http.Request) (*http.Response, error) {
+						resp := &http.Response{StatusCode: http.StatusTeapot, Header: make(map[string][]string)}
+
+						//if len(req.Cookies()) > 0 {
+						//	//Only attach the JSESSIONID on to the response
+						//	resp.Header.Add(round_tripper.CookieHeader, req.Cookies()[0].String())
+						//	return resp, nil
+						//}
+
+						// Expect(req.Host).To(Equal(routeServiceURL.Host))
+						// Expect(req.URL).To(Equal(routeServiceURL))
+
+						sessionCookie.Value, _ = uuid.GenerateUUID()
+						resp.Header.Add(round_tripper.CookieHeader, sessionCookie.String())
+						return resp, nil
+					}
+
+					endpoint1 = route.NewEndpoint(&route.EndpointOpts{
+						Host: "1.1.1.1", Port: 9091, PrivateInstanceId: "id-1",
+					})
+					endpoint2 = route.NewEndpoint(&route.EndpointOpts{
+						Host: "1.1.1.1", Port: 9092, PrivateInstanceId: "id-2",
+					})
+
+					added := routePool.Put(endpoint1)
+					Expect(added).To(Equal(route.ADDED))
+					added = routePool.Put(endpoint2)
+					Expect(added).To(Equal(route.ADDED))
+					removed := routePool.Remove(endpoint)
+					Expect(removed).To(BeTrue())
+				})
+
+				Context("and no previous session", func() {
+					It("will select an endpoint and add a cookie header with the privateInstanceId", func() {
+						resp, err := proxyRoundTripper.RoundTrip(req)
+						Expect(err).ToNot(HaveOccurred())
+
+						cookies := resp.Cookies()
+						Expect(cookies).To(HaveLen(2))
+						Expect(cookies[0].Raw).To(Equal(sessionCookie.String()))
+						Expect(cookies[1].Name).To(Equal(round_tripper.VcapCookieId))
+						Expect(cookies[1].Value).To(SatisfyAny(
+							Equal("id-1"),
+							Equal("id-2")))
+					})
+				})
+
+				//BeforeEach(func() {
+
+				//	transport.RoundTripStub = func(req *http.Request) (*http.Response, error) {
+				//		resp := &http.Response{StatusCode: http.StatusTeapot, Header: make(map[string][]string)}
+
+				//		if len(req.Cookies()) > 0 {
+				//			//Only attach the JSESSIONID on to the response
+				//			resp.Header.Add(round_tripper.CookieHeader, req.Cookies()[0].String())
+				//			return resp, nil
+				//		}
+
+				//		sessionCookie.Value, _ = uuid.GenerateUUID()
+				//		resp.Header.Add(round_tripper.CookieHeader, sessionCookie.String())
+				//		return resp, nil
+				//	}
+
+				//})
+
+				Context("and previous session", func() {
+					var cookies []*http.Cookie
+					JustBeforeEach(func() {
+						resp, err := proxyRoundTripper.RoundTrip(req)
+						Expect(err).ToNot(HaveOccurred())
+
+						cookies = resp.Cookies()
+						Expect(cookies).To(HaveLen(2))
+						for _, cookie := range cookies {
+							req.AddCookie(cookie)
+						}
+					})
+
+					It("will select the previous backend", func() {
+						resp, err := proxyRoundTripper.RoundTrip(req)
+						Expect(err).ToNot(HaveOccurred())
+
+						new_cookies := resp.Cookies()
+						Expect(new_cookies).To(HaveLen(2))
+
+						//JSESSIONID should be the same
+						Expect(new_cookies[0]).To(Equal(cookies[0]))
+						//__VCAP_ID__ should be the same
+						Expect(new_cookies[1].Value).To(Equal(cookies[1].Value))
+
+						Expect(new_cookies[0].Raw).To(Equal(sessionCookie.String()))
+						Expect(new_cookies[1].Name).To(Equal(round_tripper.VcapCookieId))
+					})
+				})
+			})
+
 			Context("when the request context contains a Route Service URL", func() {
 				var routeServiceURL *url.URL
 				BeforeEach(func() {
@@ -776,6 +894,9 @@ var _ = Describe("ProxyRoundTripper", func() {
 						Expect(new_cookies[0]).To(Equal(cookies[0]))
 
 						Expect(new_cookies[1].Value).To(Equal(cookies[1].Value))
+
+						Expect(new_cookies[0].Raw).To(Equal(sessionCookie.String()))
+						Expect(new_cookies[1].Name).To(Equal(round_tripper.VcapCookieId))
 					})
 
 					Context("when the previous endpoints cannot be reached", func() {
