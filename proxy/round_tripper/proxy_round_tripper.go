@@ -129,6 +129,7 @@ func (rt *roundTripper) RoundTrip(originalRequest *http.Request) (*http.Response
 		logger := rt.logger
 
 		if reqInfo.RouteServiceURL == nil {
+			fmt.Println("*** no route service url set")
 			endpoint, selectEndpointErr = rt.selectEndpoint(iter, request)
 			if selectEndpointErr != nil {
 				logger.Error("select-endpoint-failed", zap.String("host", reqInfo.RoutePool.Host()), zap.Error(selectEndpointErr))
@@ -157,6 +158,7 @@ func (rt *roundTripper) RoundTrip(originalRequest *http.Request) (*http.Response
 
 			break
 		} else {
+			fmt.Println("*** route service url set")
 			logger.Debug(
 				"route-service",
 				zap.Object("route-service-url", reqInfo.RouteServiceURL),
@@ -174,6 +176,7 @@ func (rt *roundTripper) RoundTrip(originalRequest *http.Request) (*http.Response
 			var roundTripper http.RoundTripper
 			roundTripper = GetRoundTripper(endpoint, rt.roundTripperFactory, true)
 			if reqInfo.ShouldRouteToInternalRouteService {
+				fmt.Println("*** internal route service flag set")
 				roundTripper = rt.routeServicesTransport
 			}
 
@@ -210,16 +213,17 @@ func (rt *roundTripper) RoundTrip(originalRequest *http.Request) (*http.Response
 		return nil, finalErr
 	}
 
-	fmt.Println("*** just before setupSticky if block")
+	corrId := res.Header.Get(handlers.VcapRequestIdHeader)
+	fmt.Println("*** just before setupSticky if block, ", corrId)
 	fmt.Println(res)
-	fmt.Println(res)
+	fmt.Println("endpoint id: ", endpoint.PrivateInstanceId, " ", corrId)
 	if res != nil && endpoint.PrivateInstanceId != "" {
-		fmt.Println("*** just before setupSticky call")
+		fmt.Println("*** just before setupSticky call ", corrId)
 		setupStickySession(
 			res, endpoint, stickyEndpointID, rt.secureCookies,
 			reqInfo.RoutePool.ContextPath(), rt.stickySessionCookieNames, rt.logger,
 		)
-		fmt.Println("*** just after setupSticky call")
+		fmt.Println("*** just after setupSticky call ", corrId)
 	}
 
 	return res, nil
