@@ -3,6 +3,7 @@ package round_tripper
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -209,11 +210,16 @@ func (rt *roundTripper) RoundTrip(originalRequest *http.Request) (*http.Response
 		return nil, finalErr
 	}
 
+	fmt.Println("*** just before setupSticky if block")
+	fmt.Println(res)
+	fmt.Println(res)
 	if res != nil && endpoint.PrivateInstanceId != "" {
+		fmt.Println("*** just before setupSticky call")
 		setupStickySession(
 			res, endpoint, stickyEndpointID, rt.secureCookies,
 			reqInfo.RoutePool.ContextPath(), rt.stickySessionCookieNames, rt.logger,
 		)
+		fmt.Println("*** just after setupSticky call")
 	}
 
 	return res, nil
@@ -333,6 +339,7 @@ func setupStickySession(
 	logger.Info("response debugging", zap.Bool("sticky fourth check?", sticky), zap.String("private instance ID", endpoint.PrivateInstanceId))
 
 	if sticky {
+		fmt.Println("*** is sticky")
 		// right now secure attribute would as equal to the JSESSION ID cookie (if present),
 		// but override if set to true in config
 		if secureCookies {
