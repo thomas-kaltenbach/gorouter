@@ -176,7 +176,6 @@ func (rt *roundTripper) RoundTrip(originalRequest *http.Request) (*http.Response
 			var roundTripper http.RoundTripper
 			roundTripper = GetRoundTripper(endpoint, rt.roundTripperFactory, true)
 			if reqInfo.ShouldRouteToInternalRouteService {
-				fmt.Println("*** internal route service flag set")
 				roundTripper = rt.routeServicesTransport
 			}
 
@@ -216,11 +215,11 @@ func (rt *roundTripper) RoundTrip(originalRequest *http.Request) (*http.Response
 	corrId := res.Header.Get(handlers.VcapRequestIdHeader)
 	fmt.Println("*** just before setupSticky if block, ", corrId)
 	fmt.Println(res)
-	fmt.Println("endpoint id: ", endpoint.PrivateInstanceId, " ", corrId)
+	fmt.Println("endpoint id: '", endpoint.PrivateInstanceId, "' ", corrId)
 	if res != nil && endpoint.PrivateInstanceId != "" {
 		fmt.Println("*** just before setupSticky call ", corrId)
 		setupStickySession(
-			res, endpoint, stickyEndpointID, rt.secureCookies,
+			res, request, endpoint, stickyEndpointID, rt.secureCookies,
 			reqInfo.RoutePool.ContextPath(), rt.stickySessionCookieNames, rt.logger,
 		)
 		fmt.Println("*** just after setupSticky call ", corrId)
@@ -302,6 +301,7 @@ func (rt *roundTripper) selectEndpoint(iter route.EndpointIterator, request *htt
 
 func setupStickySession(
 	response *http.Response,
+	request *http.Request,
 	endpoint *route.Endpoint,
 	originalEndpointId string,
 	secureCookies bool,
@@ -314,10 +314,14 @@ func setupStickySession(
 	sameSite := http.SameSite(0)
 	expiry := time.Time{}
 
+
 	// did the endpoint change?
 	sticky := originalEndpointId != "" && originalEndpointId != endpoint.PrivateInstanceId
+
+
 	logger.Info("response debugging", zap.Bool("sticky first check?", sticky), zap.String("originalEndpointId", originalEndpointId), zap.String("private instance ID", endpoint.PrivateInstanceId))
 
+	var stickySessionCookieSet bool
 	for _, v := range response.Cookies() {
 		if _, ok := stickySessionCookieNames[v.Name]; ok {
 			sticky = true
@@ -328,19 +332,50 @@ func setupStickySession(
 			sameSite = v.SameSite
 			expiry = v.Expires
 			logger.Info("response debugging", zap.Bool("sticky second check?", sticky), zap.String("private instance ID", endpoint.PrivateInstanceId))
+			stickySessionCookieSet = true
 			break
 		}
 	}
-
+	vcapIDAlreadySet := false
 	for _, v := range response.Cookies() {
 		if v.Name == VcapCookieId {
 			sticky = false
 			logger.Info("response debugging", zap.Bool("sticky third check?", sticky), zap.String("private instance ID", endpoint.PrivateInstanceId))
+			vcapIDAlreadySet = true
 			break
 		}
 	}
 
-	logger.Info("response debugging", zap.Bool("sticky fourth check?", sticky), zap.String("private instance ID", endpoint.PrivateInstanceId))
+	//// was the request trying to do sticky sessions and did it succeed?
+	// maybe dont run this if the jsessionid is set, could be resetting values (expiry etc)
+	if originalEndpointId == endpoint.PrivateInstanceId && stickySessionCookieSet == false {
+	//	// then set the VCAP_ID again identical to the req.
+	//	// so this way the route service won't overwrite it
+		if vcapIDAlreadySet == false {
+			for _, v := range request.Cookies() {
+
+				if v.Name == VcapCookieId {
+
+					newVCAPCookie := &http.Cookie{
+						Name:     VcapCookieId,
+						Value:    v.Value,
+						Path:     v.Path,
+						MaxAge:   v.MaxAge,
+						HttpOnly: true,
+						Secure:   v.Secure,
+						SameSite: v.SameSite,
+						Expires:  v.Expires,
+					}
+					
+					if cookieString := newVCAPCookie.String(); cookieString != ""{
+						response.Header.Add(CookieHeader, cookieString)
+					}
+				}
+			}
+		}
+	//
+	}
+
 
 	if sticky {
 		fmt.Println("*** is sticky")
