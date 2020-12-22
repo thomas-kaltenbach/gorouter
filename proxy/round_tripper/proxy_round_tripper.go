@@ -329,6 +329,11 @@ func setupStickySession(
 		}
 	}
 
+	_, found := response.Header[handlers.VcapRequestIdHeader]
+	if found {
+		shouldSetVCAPID = false
+	}
+
 	if shouldSetVCAPID {
 		// right now secure attribute would as equal to the JSESSION ID cookie (if present),
 		// but override if set to true in config
