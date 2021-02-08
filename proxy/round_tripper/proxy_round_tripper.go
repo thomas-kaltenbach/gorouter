@@ -1,13 +1,14 @@
 package round_tripper
 
 import (
-	"code.cloudfoundry.org/gorouter/routeservice"
 	"context"
 	"errors"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"time"
+
+	"code.cloudfoundry.org/gorouter/routeservice"
 
 	"github.com/uber-go/zap"
 
