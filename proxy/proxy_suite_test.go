@@ -39,7 +39,7 @@ var (
 	r                       *registry.RouteRegistry
 	p                       http.Handler
 	f                       *os.File
-	fakeReporter            *fakes.FakeCombinedReporter
+	fakeReporter            *fakes.FakeProxyReporter
 	conf                    *config.Config
 	proxyServer             net.Listener
 	al                      accesslog.AccessLogger
@@ -77,7 +77,7 @@ var _ = BeforeEach(func() {
 	conf.TLSHandshakeTimeout = 900 * time.Millisecond
 	conf.EndpointTimeout = 1 * time.Second
 	conf.EndpointDialTimeout = 50 * time.Millisecond
-	fakeReporter = &fakes.FakeCombinedReporter{}
+	fakeReporter = &fakes.FakeProxyReporter{}
 	skipSanitization = func(*http.Request) bool { return false }
 })
 

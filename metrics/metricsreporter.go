@@ -17,6 +17,10 @@ type MetricsReporter struct {
 	unmuzzled uint64
 }
 
+func (m *MetricsReporter) CaptureDeprecatedResponse() {
+	m.Batcher.BatchIncrementCounter("deprecated_responses")
+}
+
 func (m *MetricsReporter) CaptureBackendExhaustedConns() {
 	m.Batcher.BatchIncrementCounter("backend_exhausted_conns")
 }

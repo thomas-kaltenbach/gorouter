@@ -278,6 +278,7 @@ func initializeMetrics(sender *metric_sender.MetricSender) *metrics.MetricsRepor
 		"backend_invalid_id",
 		"backend_invalid_tls_cert",
 		"backend_tls_handshake_failed",
+		"deprecated_responses",
 		"rejected_requests",
 		"total_requests",
 		"responses",

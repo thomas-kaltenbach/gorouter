@@ -156,6 +156,12 @@ func (rt *roundTripper) RoundTrip(originalRequest *http.Request) (*http.Response
 				}
 			}
 
+			if err == nil && res != nil && (res.Header.Get("Cf-Deprecated-Response") != "") {
+				rt.combinedReporter.CaptureDeprecatedResponse()
+				logger.Error("received-deprecated-response-from-app",
+					zap.String("host", reqInfo.RoutePool.Host()))
+			}
+
 			break
 		} else {
 			logger.Debug(
@@ -195,6 +201,14 @@ func (rt *roundTripper) RoundTrip(originalRequest *http.Request) (*http.Response
 				)
 			}
 
+			if res != nil && res.Header.Get("Cf-Deprecated-Response") != "" {
+				rt.combinedReporter.CaptureDeprecatedResponse()
+				logger.Error(
+					"received-deprecated-response-from-route-service",
+					zap.Object("route-service-url", reqInfo.RouteServiceURL),
+				)
+			}
+
 			break
 		}
 	}
@@ -211,7 +225,7 @@ func (rt *roundTripper) RoundTrip(originalRequest *http.Request) (*http.Response
 		return nil, finalErr
 	}
 
-	if res != nil && endpoint.PrivateInstanceId != "" && !requestSentToRouteService(request){
+	if res != nil && endpoint.PrivateInstanceId != "" && !requestSentToRouteService(request) {
 		setupStickySession(
 			res, endpoint, stickyEndpointID, rt.secureCookies,
 			reqInfo.RoutePool.ContextPath(), rt.stickySessionCookieNames,
@@ -372,4 +386,3 @@ func requestSentToRouteService(request *http.Request) bool {
 	rsUrl := request.Header.Get(routeservice.HeaderKeyForwardedURL)
 	return sigHeader != "" && rsUrl != ""
 }
-

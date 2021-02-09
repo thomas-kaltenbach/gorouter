@@ -31,6 +31,7 @@ type ProxyReporter interface {
 	CaptureRouteServiceResponse(res *http.Response)
 	CaptureWebSocketUpdate()
 	CaptureWebSocketFailure()
+	CaptureDeprecatedResponse()
 }
 
 type ComponentTagged interface {

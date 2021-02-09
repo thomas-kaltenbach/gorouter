@@ -65,7 +65,7 @@ var _ = Describe("ProxyRoundTripper", func() {
 			req                    *http.Request
 			reqBody                *testBody
 			resp                   *httptest.ResponseRecorder
-			combinedReporter       *fakes.FakeCombinedReporter
+			combinedReporter       *fakes.FakeProxyReporter
 			roundTripperFactory    *FakeRoundTripperFactory
 			routeServicesTransport *sharedfakes.RoundTripper
 			retriableClassifier    *errorClassifierFakes.Classifier
@@ -121,7 +121,7 @@ var _ = Describe("ProxyRoundTripper", func() {
 			added := routePool.Put(endpoint)
 			Expect(added).To(Equal(route.ADDED))
 
-			combinedReporter = new(fakes.FakeCombinedReporter)
+			combinedReporter = new(fakes.FakeProxyReporter)
 
 			errorHandler = &roundtripperfakes.ErrorHandler{}
 
@@ -417,6 +417,7 @@ var _ = Describe("ProxyRoundTripper", func() {
 			})
 
 			Context("when the request succeeds", func() {
+
 				BeforeEach(func() {
 					transport.RoundTripReturns(
 						&http.Response{StatusCode: http.StatusTeapot}, nil,
@@ -443,6 +444,39 @@ var _ = Describe("ProxyRoundTripper", func() {
 					Expect(logger.Buffer()).ToNot(gbytes.Say(`route-service`))
 				})
 
+				It("does not log anything about deprecated app responses", func() {
+					_, err := proxyRoundTripper.RoundTrip(req)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(logger.Buffer()).ToNot(gbytes.Say(`received-deprecated-response-from-app`))
+				})
+
+				It("does not emit a deprecated response metric", func() {
+					_, err := proxyRoundTripper.RoundTrip(req)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(combinedReporter.CaptureDeprecatedResponseCallCount()).To(Equal(0))
+				})
+
+				Context("when the Cf-Deprecated-Response header is on the response", func() {
+					BeforeEach(func() {
+						rsp := http.Response{StatusCode: http.StatusTeapot, Header: http.Header{}}
+						rsp.Header.Add("Cf-Deprecated-Response", "foobar")
+						transport.RoundTripReturns(&rsp, nil)
+					})
+
+					It("logs with information about the endpoint and app", func() {
+						_, err := proxyRoundTripper.RoundTrip(req)
+						Expect(err).ToNot(HaveOccurred())
+
+						Expect(logger.Buffer()).To(gbytes.Say(`received-deprecated-response-from-app`))
+						Expect(logger.Buffer()).To(gbytes.Say(`myapp.com`))
+					})
+
+					It("emits a deprecated response metric", func() {
+						_, err := proxyRoundTripper.RoundTrip(req)
+						Expect(err).ToNot(HaveOccurred())
+						Expect(combinedReporter.CaptureDeprecatedResponseCallCount()).To(Equal(1))
+					})
+				})
 			})
 
 			Context("when there are a mixture of tls and non-tls backends", func() {
@@ -608,6 +642,44 @@ var _ = Describe("ProxyRoundTripper", func() {
 					_, err := proxyRoundTripper.RoundTrip(req)
 					Expect(err).ToNot(HaveOccurred())
 					Expect(combinedReporter.CaptureRoutingRequestCallCount()).To(Equal(0))
+				})
+
+				It("does not log about deprecated responses.", func() {
+					_, err := proxyRoundTripper.RoundTrip(req)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(logger.Buffer()).ToNot(gbytes.Say(`received-deprecated-response-from-route-service`))
+				})
+
+				It("does not emit a deprecated response metric", func() {
+					_, err := proxyRoundTripper.RoundTrip(req)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(combinedReporter.CaptureDeprecatedResponseCallCount()).To(Equal(0))
+				})
+
+				Context("when the Cf-Deprecated-Response header is on the response", func() {
+					BeforeEach(func() {
+						rsp := http.Response{StatusCode: http.StatusTeapot, Header: http.Header{}}
+						rsp.Header.Add("Cf-Deprecated-Response", "foobar")
+						transport.RoundTripStub = func(req *http.Request) (*http.Response, error) {
+							Expect(req.Host).To(Equal(routeServiceURL.Host))
+							Expect(req.URL).To(Equal(routeServiceURL))
+							return &rsp, nil
+						}
+					})
+
+					It("logs with information about the endpoint and app", func() {
+						_, err := proxyRoundTripper.RoundTrip(req)
+						Expect(err).ToNot(HaveOccurred())
+
+						Expect(logger.Buffer()).To(gbytes.Say(`received-deprecated-response-from-route-service`))
+						Expect(logger.Buffer()).To(gbytes.Say(routeServiceURL.Host))
+					})
+
+					It("emits a deprecated response metric", func() {
+						_, err := proxyRoundTripper.RoundTrip(req)
+						Expect(err).ToNot(HaveOccurred())
+						Expect(combinedReporter.CaptureDeprecatedResponseCallCount()).To(Equal(1))
+					})
 				})
 
 				Context("when the route service returns a non-2xx status code", func() {

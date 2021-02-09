@@ -27,6 +27,18 @@ var _ = Describe("MetricsReporter", func() {
 		metricReporter = &metrics.MetricsReporter{Sender: sender, Batcher: batcher}
 	})
 
+	It("increments the deprecated_response metric", func() {
+		metricReporter.CaptureDeprecatedResponse()
+
+		Expect(batcher.BatchIncrementCounterCallCount()).To(Equal(1))
+		Expect(batcher.BatchIncrementCounterArgsForCall(0)).To(Equal("deprecated_responses"))
+
+		metricReporter.CaptureDeprecatedResponse()
+
+		Expect(batcher.BatchIncrementCounterCallCount()).To(Equal(2))
+		Expect(batcher.BatchIncrementCounterArgsForCall(1)).To(Equal("deprecated_responses"))
+	})
+
 	It("increments the bad_requests metric", func() {
 		metricReporter.CaptureBadRequest()
 

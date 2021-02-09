@@ -24,7 +24,7 @@ import (
 
 var _ = Describe("HandleError", func() {
 	var (
-		metricReporter   *fakes.FakeCombinedReporter
+		metricReporter   *fakes.FakeProxyReporter
 		errorHandler     *round_tripper.ErrorHandler
 		responseWriter   utils.ProxyResponseWriter
 		responseRecorder *httptest.ResponseRecorder
@@ -32,7 +32,7 @@ var _ = Describe("HandleError", func() {
 	)
 
 	BeforeEach(func() {
-		metricReporter = new(fakes.FakeCombinedReporter)
+		metricReporter = new(fakes.FakeProxyReporter)
 		errorHandled = false
 		errorHandler = &round_tripper.ErrorHandler{
 			MetricReporter: metricReporter,

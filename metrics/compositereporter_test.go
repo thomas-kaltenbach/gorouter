@@ -46,6 +46,11 @@ var _ = Describe("CompositeReporter", func() {
 		Expect(fakeProxyReporter.CaptureBackendExhaustedConnsCallCount()).To(Equal(1))
 	})
 
+	It("forwards CaptureDeprecatedResponse to the proxy reporter", func() {
+		composite.CaptureDeprecatedResponse()
+		Expect(fakeProxyReporter.CaptureDeprecatedResponseCallCount()).To(Equal(1))
+	})
+
 	It("forwards CaptureBackendInvalidID() to the proxy reporter", func() {
 		composite.CaptureBackendInvalidID()
 		Expect(fakeProxyReporter.CaptureBackendInvalidIDCallCount()).To(Equal(1))
