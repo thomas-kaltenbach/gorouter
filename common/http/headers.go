@@ -10,6 +10,7 @@ const (
 	CfInstanceIdHeader    = "X-CF-InstanceID"
 	CfAppInstance         = "X-CF-APP-INSTANCE"
 	CfRouterError         = "X-Cf-RouterError"
+	CfDeprecatedResponse  = "Cf-Deprecated-Response"
 )
 
 func SetTraceHeaders(responseWriter http.ResponseWriter, routerIp, addr string) {
