@@ -658,6 +658,7 @@ var _ = Describe("ProxyRoundTripper", func() {
 
 				Context("when the Cf-Deprecated-Response header is on the response", func() {
 					BeforeEach(func() {
+						req.Header.Add("X-CF-Forwarded-Url", "http://myapp.com")
 						rsp := http.Response{StatusCode: http.StatusTeapot, Header: http.Header{}}
 						rsp.Header.Add("Cf-Deprecated-Response", "foobar")
 						transport.RoundTripStub = func(req *http.Request) (*http.Response, error) {
@@ -672,7 +673,10 @@ var _ = Describe("ProxyRoundTripper", func() {
 						Expect(err).ToNot(HaveOccurred())
 
 						Expect(logger.Buffer()).To(gbytes.Say(`received-deprecated-response-from-route-service`))
+						Expect(logger.Buffer()).To(gbytes.Say("route-service-url"))
 						Expect(logger.Buffer()).To(gbytes.Say(routeServiceURL.Host))
+						Expect(logger.Buffer()).To(gbytes.Say("x-cf-forwarded-url"))
+						Expect(logger.Buffer()).To(gbytes.Say("http://myapp.com"))
 					})
 
 					It("emits a deprecated response metric", func() {

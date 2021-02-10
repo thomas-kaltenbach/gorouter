@@ -206,6 +206,7 @@ func (rt *roundTripper) RoundTrip(originalRequest *http.Request) (*http.Response
 				logger.Error(
 					"received-deprecated-response-from-route-service",
 					zap.Object("route-service-url", reqInfo.RouteServiceURL),
+					zap.Object("x-cf-forwarded-url", request.Header.Get(routeservice.HeaderKeyForwardedURL)),
 				)
 			}
 
