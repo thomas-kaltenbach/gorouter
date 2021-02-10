@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"time"
 
+	router_http "code.cloudfoundry.org/gorouter/common/http"
 	"code.cloudfoundry.org/gorouter/routeservice"
 
 	"github.com/uber-go/zap"
@@ -157,6 +158,7 @@ func (rt *roundTripper) RoundTrip(originalRequest *http.Request) (*http.Response
 			}
 
 			if err == nil && res != nil && (res.Header.Get("Cf-Deprecated-Response") != "") {
+				res.Header.Set(router_http.CfRouterError, "too_many_transfer_encodings")
 				rt.combinedReporter.CaptureDeprecatedResponse()
 				logger.Error("received-deprecated-response-from-app",
 					zap.String("host", reqInfo.RoutePool.Host()))
@@ -202,6 +204,7 @@ func (rt *roundTripper) RoundTrip(originalRequest *http.Request) (*http.Response
 			}
 
 			if res != nil && res.Header.Get("Cf-Deprecated-Response") != "" {
+				res.Header.Set(router_http.CfRouterError, "too_many_transfer_encodings")
 				rt.combinedReporter.CaptureDeprecatedResponse()
 				logger.Error(
 					"received-deprecated-response-from-route-service",

@@ -456,6 +456,12 @@ var _ = Describe("ProxyRoundTripper", func() {
 					Expect(combinedReporter.CaptureDeprecatedResponseCallCount()).To(Equal(0))
 				})
 
+				It("does not set the X-Cf-Routererror", func() {
+					res, err := proxyRoundTripper.RoundTrip(req)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(res.Header.Get("X-Cf-Routererror")).To(Equal(""))
+				})
+
 				Context("when the Cf-Deprecated-Response header is on the response", func() {
 					BeforeEach(func() {
 						rsp := http.Response{StatusCode: http.StatusTeapot, Header: http.Header{}}
@@ -475,6 +481,12 @@ var _ = Describe("ProxyRoundTripper", func() {
 						_, err := proxyRoundTripper.RoundTrip(req)
 						Expect(err).ToNot(HaveOccurred())
 						Expect(combinedReporter.CaptureDeprecatedResponseCallCount()).To(Equal(1))
+					})
+
+					It("sets the X-Cf-Routererror", func() {
+						res, err := proxyRoundTripper.RoundTrip(req)
+						Expect(err).ToNot(HaveOccurred())
+						Expect(res.Header.Get("X-Cf-Routererror")).To(Equal("too_many_transfer_encodings"))
 					})
 				})
 			})
@@ -629,7 +641,8 @@ var _ = Describe("ProxyRoundTripper", func() {
 					transport.RoundTripStub = func(req *http.Request) (*http.Response, error) {
 						Expect(req.Host).To(Equal(routeServiceURL.Host))
 						Expect(req.URL).To(Equal(routeServiceURL))
-						return nil, nil
+						rsp := http.Response{StatusCode: http.StatusOK, Header: http.Header{}}
+						return &rsp, nil
 					}
 				})
 
@@ -654,6 +667,12 @@ var _ = Describe("ProxyRoundTripper", func() {
 					_, err := proxyRoundTripper.RoundTrip(req)
 					Expect(err).ToNot(HaveOccurred())
 					Expect(combinedReporter.CaptureDeprecatedResponseCallCount()).To(Equal(0))
+				})
+
+				It("does not set the X-Cf-Routererror", func() {
+					res, err := proxyRoundTripper.RoundTrip(req)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(res.Header.Get("X-Cf-Routererror")).To(Equal(""))
 				})
 
 				Context("when the Cf-Deprecated-Response header is on the response", func() {
@@ -683,6 +702,12 @@ var _ = Describe("ProxyRoundTripper", func() {
 						_, err := proxyRoundTripper.RoundTrip(req)
 						Expect(err).ToNot(HaveOccurred())
 						Expect(combinedReporter.CaptureDeprecatedResponseCallCount()).To(Equal(1))
+					})
+
+					It("sets the X-Cf-Routererror", func() {
+						res, err := proxyRoundTripper.RoundTrip(req)
+						Expect(err).ToNot(HaveOccurred())
+						Expect(res.Header.Get("X-Cf-Routererror")).To(Equal("too_many_transfer_encodings"))
 					})
 				})
 
